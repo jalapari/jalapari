@@ -7,14 +7,17 @@ const {
   generateWAMessageFromContent,
 } = require('@whiskeysockets/baileys');
 
+const fs = require('fs');
+const path = require('path');
 const qrcode = require('qrcode-terminal');
 const axios = require('axios');
 const dotenv = require('dotenv');
-const fs = require('fs');
-const path = require('path');
 
 // Konfigurasi .env
 dotenv.config();
+
+// Load data produk
+const dataProduk = fs.readFileSync(path.join(__dirname, 'data.txt'), 'utf-8');
 
 // Konfigurasi Groq API
 const groq = axios.create({
@@ -38,17 +41,31 @@ async function kirimPesan(sock, m, pesan) {
   );
 }
 
+// Fungsi mencatat ke log jika perlu diteruskan ke admin
+function logToAdmin(jid, pesan) {
+  const log = `[${new Date().toISOString()}] ${jid}: ${pesan}\n`;
+  fs.appendFileSync(path.join(__dirname, 'log_admin.txt'), log);
+}
+
 // Fungsi untuk mengirim pesan ke Groq (LLM)
 async function kirimPesanKeChatGroq(sock, m) {
   try {
-    const userText = m.message?.conversation || '';
+    const userText = m.message?.conversation?.trim() || '';
+    const lowerText = userText.toLowerCase();
+
+    // Respon cepat untuk sapaan ringan
+    const greetings = ['halo', 'hi', 'test', 'assalamualaikum', 'pagi', 'malam'];
+    if (greetings.some(greet => lowerText.includes(greet))) {
+      await kirimPesan(sock, m, 'Halo! Ada yang bisa saya bantu seputar produk kami? 😊');
+      return;
+    }
 
     const response = await groq.post('chat/completions', {
-      model: 'llama3-70b-8192', // atau 'gemma-7b-it'
+      model: 'llama3-70b-8192',
       messages: [
         {
           role: 'system',
-          content: 'Kamu adalah asisten AI yang menjawab semua pertanyaan dengan bahasa Indonesia yang jelas. Jika pertanyaan terlihat mendesak, balas dengan: "Pesan ini akan diteruskan ke HERWANSYAH dan akan dibalas saat dia online.',
+          content: `Kamu adalah asisten AI profesional berbahasa indonesia yang menjawab pertanyaan yang ada hubungannya berdasarkan data produk berikut:\n\n${dataProduk}\n\nTugasmu:\n1. Jawab dengan sopan dan ramah, berdasarkan data.\n2. Jika ditanya hal ringan seperti "ada yang lain?", "warna lain?", "yang lebih murah?", jawablah dengan profesional berdasarkan isi data.\n3. Jika tidak ada informasi yang relevan, balas:\n"Maaf, saya tidak menemukan informasi tersebut. Saya akan meneruskan pertanyaan ini ke admin."\n4. Jangan mengarang atau menggunakan informasi di luar data produk.`,
         },
         {
           role: 'user',
@@ -57,10 +74,17 @@ async function kirimPesanKeChatGroq(sock, m) {
       ],
     });
 
-    const jawaban = response.data.choices[0].message.content;
+    const jawaban = response.data.choices[0].message.content.trim();
+    const lowerJawaban = jawaban.toLowerCase();
 
-    if (userText.toLowerCase().includes('mendesak')) {
-      await kirimPesan(sock, m, 'Akan diteruskan ke HERWANSYAH.');
+    const isAlihkanKeAdmin =
+      lowerJawaban.includes('saya akan meneruskan') ||
+      lowerJawaban.includes('tidak menemukan informasi') ||
+      lowerJawaban.includes('saya tidak tahu');
+
+    if (isAlihkanKeAdmin) {
+      await kirimPesan(sock, m, 'saya adalah asisten AI untuk saat ini saya tidak bisa menjawab pertanyaan diluar dari yang diprogramkan ke saya, jadi pertanyaan kamu akan diteruskan ke Herwan.');
+      logToAdmin(m.key.remoteJid, userText);
     } else {
       await kirimPesan(sock, m, jawaban);
     }
