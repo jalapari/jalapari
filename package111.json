@@ -1,0 +1,17 @@
+{
+  "name": "botwa5",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.17",
+    "dotenv": "^16.5.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

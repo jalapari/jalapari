@@ -22,7 +22,7 @@ harga lgs100 = Rp. 65.000.000
 harga lgs68 = Rp. 29.500.000
 harga ;gs75 = Rp. 39.500.000
 
-pengiriman breaker seluruh profinsi sulawesi
+pengiriman breaker hanya bisa untuk seluruh profinsi sulawesi saja
 
 applicable Excavator
 EDT2200 dan LGS140 = Komatsu PC200, Kobelco SK200, Zaxis ZX210, Sumitomo SH210, CAT 320D, CAT 320 GC, CAT 320 GX, Hyundai HX210, Liugong CLG922E, 

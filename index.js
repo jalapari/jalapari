@@ -28,6 +28,13 @@ const groq = axios.create({
   },
 });
 
+// Fungsi bantu untuk ambil isi pesan teks dari berbagai format
+function getPesanTeks(msg) {
+  return msg.message?.conversation ||
+         msg.message?.extendedTextMessage?.text ||
+         null;
+}
+
 // Fungsi untuk mengirim pesan ke pengguna
 async function kirimPesan(sock, m, pesan) {
   const message = generateWAMessageFromContent(m.key.remoteJid, {
@@ -49,7 +56,7 @@ function logToAdmin(jid, pesan) {
 
 // Fungsi untuk kirim pesan ke admin (WA: +6285821255044)
 async function kirimKeAdminLangsung(sock, pesan) {
-  const adminJid = '6285821255044@s.whatsapp.net';
+  const adminJid = '62895385191311@s.whatsapp.net';
   const message = generateWAMessageFromContent(adminJid, {
     conversation: pesan,
   }, {});
@@ -61,7 +68,7 @@ async function kirimKeAdminLangsung(sock, pesan) {
 // Fungsi untuk mengirim pesan ke Groq (LLM)
 async function kirimPesanKeChatGroq(sock, m) {
   try {
-    const userText = m.message?.conversation?.trim() || '';
+    const userText = getPesanTeks(m)?.trim() || '';
     const lowerText = userText.toLowerCase();
 
     // Respon cepat untuk sapaan ringan
@@ -76,7 +83,7 @@ async function kirimPesanKeChatGroq(sock, m) {
       messages: [
         {
           role: 'system',
-          content: `Kamu adalah asisten AI profesional berbahasa indonesia yang menjawab pertanyaan yang ada hubungannya berdasarkan data produk berikut:\n\n${dataProduk}\n\nTugasmu:\n1. Jawab dengan sopan dan ramah, berdasarkan data.\n2. Jika ditanya hal ringan seperti "ada yang lain?", "warna lain?", "yang lebih murah?", jawablah dengan profesional berdasarkan isi data.\n3. Jika tidak ada informasi yang relevan, balas:\n"Maaf, saya tidak menemukan informasi tersebut. Saya akan meneruskan pertanyaan ini ke admin."\n4. Jangan mengarang atau menggunakan informasi di luar data produk.`,
+          content: `Kamu adalah AI Marketing yang menjawab semua pertanyaan dengan bahasa indonesia tetapi dengan singkat dan jelas jangan menjelaskan panjang lebar, jawab berdasarkan data produk berikut:\n\n${dataProduk}\n\nTugasmu:\n1. Jawab dengan sopan dan ramah, berdasarkan data.\n2. Jika ditanya hal ringan seperti "ada yang lain?", "warna lain?", "yang lebih murah?", jawablah dengan profesional berdasarkan isi data.\n3. Jika tidak ada informasi dari pertanyaan seputar produkyang relevan, balas:\n"Maaf, saya tidak menemukan informasi tersebut. Saya akan meneruskan pertanyaan ini ke admin."\n4. Jangan mengarang atau menggunakan informasi di luar data produk.`,
         },
         {
           role: 'user',
@@ -88,13 +95,14 @@ async function kirimPesanKeChatGroq(sock, m) {
     const jawaban = response.data.choices[0].message.content.trim();
     const lowerJawaban = jawaban.toLowerCase();
 
-    const isAlihkanKeAdmin =
-      lowerJawaban.includes('saya akan meneruskan') ||
-      lowerJawaban.includes('tidak menemukan informasi') ||
-      lowerJawaban.includes('saya tidak tahu');
+  const isAlihkanKeAdmin =
+  /saya.*tidak.*(bisa|dapat).*jawab/.test(lowerJawaban) ||
+  lowerJawaban.includes('saya akan meneruskan') ||
+  lowerJawaban.includes('tidak menemukan informasi') ||
+  lowerJawaban.includes('saya tidak tahu');
+
 
     if (isAlihkanKeAdmin) {
-      // Ambil nomor pengirim
       const nomorUser = m.key.remoteJid.replace('@s.whatsapp.net', '');
       const notifikasi = `📩 Pertanyaan dari https://wa.me/${nomorUser}:\n"${userText}"\nTidak bisa dijawab oleh AI.`;
 
@@ -112,9 +120,9 @@ async function kirimPesanKeChatGroq(sock, m) {
 
 // Fungsi untuk menghandle pesan masuk
 async function handlePesan(sock, m) {
-  const pesan = m.message?.conversation;
-  if (!pesan) return;
-  console.log('Pesan masuk dari', m.key.remoteJid, ':', pesan);
+  const teks = getPesanTeks(m);
+  if (!teks) return;
+  console.log('Pesan masuk dari', m.key.remoteJid, ':', teks);
   await kirimPesanKeChatGroq(sock, m);
 }
 
@@ -147,10 +155,27 @@ async function startBot() {
     }
   });
 
-  sock.ev.on('messages.upsert', async ({ messages }) => {
-    const msg = messages[0];
-    if (!msg.key.fromMe && msg.message?.conversation) {
+  sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    console.log('\n=== Event messages.upsert ===');
+    console.log('Tipe update:', type);
+    console.log('Isi messages:', JSON.stringify(messages, null, 2));
+
+    const msg = messages?.[0];
+    if (!msg) {
+      console.log('Pesan kosong. Tidak diproses.');
+      return;
+    }
+
+    const isFromMe = msg.key.fromMe;
+    const teks = getPesanTeks(msg);
+    console.log('Dari saya sendiri?:', isFromMe);
+    console.log('Isi teks pesan:', teks);
+
+    if (!isFromMe && teks) {
+      console.log('>> Menjalankan handlePesan...');
       await handlePesan(sock, msg);
+    } else {
+      console.log('>> Pesan tidak diproses karena tidak memenuhi syarat.');
     }
   });
 }
