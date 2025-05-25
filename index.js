@@ -67,7 +67,7 @@ async function kirimPesanKeChatGroq(sock, m) {
 
     const greetings = ['halo', 'hi', 'test', 'assalamualaikum', 'pagi', 'malam'];
     if (greetings.some(greet => lowerText.includes(greet))) {
-      await kirimPesan(sock, m, 'Halo! Ada yang bisa saya bantu seputar produk kami? 😊');
+      await kirimPesan(sock, m, 'Halo! Ada yang bisa saya bantu? 😊');
       return;
     }
 
@@ -76,7 +76,7 @@ async function kirimPesanKeChatGroq(sock, m) {
       messages: [
         {
           role: 'system',
-          content: `Kamu adalah AI Marketing yang menjawab semua pertanyaan dengan bahasa indonesia tetapi dengan singkat dan jelas jangan menjelaskan panjang lebar, jawab berdasarkan data produk berikut:\n\n${dataProduk}\n\nTugasmu:\n1. Jawab dengan sopan dan ramah, berdasarkan data.\n2. Jika ditanya hal ringan seperti "ada yang lain?", "warna lain?", "yang lebih murah?", jawablah dengan profesional berdasarkan isi data.\n3. Jika tidak ada informasi dari pertanyaan seputar produk yang relevan, balas:\n"Maaf, saya tidak menemukan informasi tersebut. Saya akan meneruskan pertanyaan ini ke admin."\n4. Jangan mengarang atau menggunakan informasi di luar data produk.`,
+          content: `Kamu adalah AI Marketing yang menjawab semua pertanyaan dengan bahasa indonesia dengan singkat dengan wibawa marketing dan walapun pertanyaannya tidak menggunakan bahasa indonesia tetap kamu jawab tetapi dengan singkat dan jelas jangan menjelaskan panjang lebar, jawab semua berdasarkan data produk berikut:\n\n${dataProduk}\n\nTugasmu:\n1. Jawab dengan sopan dan ramah, berdasarkan data.\n2. Jika ditanya hal ringan seperti "ada yang lain?", "warna lain?", "yang lebih murah?", jawablah dengan profesional berdasarkan isi data.\n3. Jika tidak ada informasi dari pertanyaan seputar produk yang relevan, balas:\n"Maaf, saya tidak menemukan informasi tersebut. Saya akan meneruskan pertanyaan ini ke admin."\n4. Jangan mengarang atau menggunakan informasi di luar data produk.`,
         },
         {
           role: 'user',
@@ -98,7 +98,7 @@ async function kirimPesanKeChatGroq(sock, m) {
       const nomorUser = m.key.remoteJid.replace('@s.whatsapp.net', '');
       const notifikasi = `📩 Pertanyaan dari https://wa.me/${nomorUser}:\n"${userText}"\nTidak bisa dijawab oleh AI.`;
 
-      await kirimPesan(sock, m, 'saya adalah asisten AI untuk saat ini saya tidak bisa menjawab pertanyaan diluar dari yang diprogramkan ke saya, jadi pertanyaan kamu akan diteruskan ke Herwan.');
+      await kirimPesan(sock, m, 'saya adalah asisten AI untuk saat ini saya tidak bisa menjawab pertanyaan diluar dari yang diprogramkan ke saya, jadi pertanyaan kamu akan diteruskan ke Admin.');
       logToAdmin(m.key.remoteJid, userText);
       await kirimKeAdminLangsung(sock, notifikasi);
     } else {
