@@ -7,6 +7,8 @@ const {
   generateWAMessageFromContent,
 } = require('@whiskeysockets/baileys');
 
+require('./keepalive'); // agar tetap aktif
+
 const fs = require('fs');
 const path = require('path');
 const qrcode = require('qrcode-terminal');
