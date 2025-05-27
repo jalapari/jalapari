@@ -108,7 +108,7 @@ async function kirimPesanKeChatGroq(sock, m) {
       const nomorUser = m.key.remoteJid.replace('@s.whatsapp.net', '');
       const notifikasi = `📩 Pertanyaan dari https://wa.me/${nomorUser}:\n"${userText}"\nTidak bisa dijawab oleh AI.`;
 
-      await kirimPesan(sock, m, 'saya adalah asisten AI untuk saat ini saya tidak bisa menjawab pertanyaan diluar dari yang diprogramkan ke saya, jadi pertanyaan kamu akan diteruskan ke Herwan.');
+      await kirimPesan(sock, m, 'saya adalah asisten AI untuk saat ini saya tidak bisa menjawab pertanyaan diluar dari yang diprogramkan ke saya, jadi pertanyaan kamu akan diteruskan ke Admin.');
       logToAdmin(m.key.remoteJid, userText);
       await kirimKeAdminLangsung(sock, notifikasi);
     } else {
