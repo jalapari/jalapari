@@ -20,7 +20,7 @@ Hydraulic breaker LGS dan EDT
 
 harga lgs100 = Rp. 65.000.000
 harga lgs68 = Rp. 29.500.000
-harga ;gs75 = Rp. 39.500.000
+harga lgs75 = Rp. 39.500.000
 
 pengiriman breaker hanya bisa untuk seluruh profinsi sulawesi saja
 
@@ -33,3 +33,7 @@ LGS68 = Zaxis ZX55, Sany Sy600, Sany SY55
 LGS75 = Sany SY75, Komatsu PC78
 
 LGS100 = Zaxis ZX110, Komatsu PC130
+
+DATA BAN TRUK
+BAN TRUK ukuran 750 atau 7.50 atau 
+Chilong CA808 R16-16PR , Tracmax R16-14PR , Joepanther JPA08 R16-16PR
