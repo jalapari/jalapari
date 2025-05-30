@@ -85,17 +85,27 @@ async function kirimPesanKeChatGroq(sock, m) {
       messages: [
         {
           role: 'system',
-          content: `Kamu adalah AI Marketing profesional yang bertugas menjawab pertanyaan seputar produk dengan sopan, singkat, dan ramah. Fokus kamu adalah membantu customer hingga mereka siap checkout. Gunakan bahasa Indonesia. Ingat:
+          content: `Kamu adalah AI Marketing profesional yang sopan, ramah, dan proaktif. Tugas kamu adalah membantu calon customer yang tertarik dengan Hydraulic Breaker dari toko kami. Jawabanmu selalu menggunakan bahasa Indonesia, singkat, jelas, dan berbasis data produk di bawah.
 
-1. Jika sebelumnya sudah menyapa atau memperkenalkan toko, jangan ulangi.
-2. Jawab langsung pertanyaan user tanpa basa-basi, tapi tetap ramah.
-3. Jika user bertanya "info produk", langsung tampilkan daftar produk dengan singkat.
-4. Dorong user untuk memilih: tanya warna, tipe, ukuran, harga, atau minat beli.
-5. Arahkan ke proses checkout jika mereka sudah cocok.
-6. Jangan menjawab hal di luar data. Jika tidak tahu, jawab: "Maaf, saya tidak menemukan informasinya. Saya akan teruskan ke admin."
+Panduan utama kamu:
 
-Gunakan data berikut sebagai referensi produk:\n\n${dataProduk}`
+1. TIDAK BOLEH mengarang jawaban. Jawab hanya jika informasinya tertulis jelas di data produk.
+2. Jika data kurang lengkap, jangan langsung jawab. Tanyakan dulu ke user:
+   - Model atau kapasitas excavator mereka
+   - Jenis pekerjaan yang akan dilakukan (batu, konstruksi, tanah, dll)
+   - Di mana lokasi alat berat
+   - Breaker dibutuhkan untuk kelas berapa ton
+3. Jika customer terlihat bingung, bantu arahkan dengan bertanya: "Boleh tahu, excavator Anda berapa ton?" atau "Untuk area mana alat ini digunakan?"
+4. Jika ditanya tentang fitur yang tidak ada di data produk (misalnya: warna, stok), jawab:
+   "Maaf, saya tidak menemukan informasi tersebut dalam data. Saya akan teruskan ke Admin."
+5. Jika semua info sudah cukup, bantu pilihkan produk yang cocok dari data yang tersedia, sebutkan nama produknya dan harganya jika ada.
+6. Akhiri setiap jawaban dengan pertanyaan lanjutan agar percakapan tidak putus.
+7. JANGAN MENAWARKAN ATAU MENYEBUT FITUR seperti warna, stok, harga jika tidak ada di data produk.
 
+Gunakan data produk berikut sebagai referensi:
+
+${dataProduk}
+`,
         },
         {
           role: 'user',
@@ -107,18 +117,17 @@ Gunakan data berikut sebagai referensi produk:\n\n${dataProduk}`
     const jawaban = response.data.choices[0].message.content.trim();
     const lowerJawaban = jawaban.toLowerCase();
 
-  const isAlihkanKeAdmin =
-  /saya.*tidak.*(bisa|dapat).*jawab/.test(lowerJawaban) ||
-  lowerJawaban.includes('saya akan meneruskan') ||
-  lowerJawaban.includes('tidak menemukan informasi') ||
-  lowerJawaban.includes('saya tidak tahu');
-
+    const isAlihkanKeAdmin =
+      /saya.*tidak.*(bisa|dapat).*jawab/.test(lowerJawaban) ||
+      lowerJawaban.includes('saya akan meneruskan') ||
+      lowerJawaban.includes('tidak menemukan informasi') ||
+      lowerJawaban.includes('saya tidak tahu');
 
     if (isAlihkanKeAdmin) {
       const nomorUser = m.key.remoteJid.replace('@s.whatsapp.net', '');
       const notifikasi = `📩 Pertanyaan dari https://wa.me/${nomorUser}:\n"${userText}"\nTidak bisa dijawab oleh AI.`;
 
-      await kirimPesan(sock, m, 'saya adalah asisten AI untuk saat ini saya tidak bisa menjawab pertanyaan diluar dari yang diprogramkan ke saya, jadi pertanyaan kamu akan diteruskan ke Admin.');
+      await kirimPesan(sock, m, 'Saya adalah asisten AI. Untuk saat ini saya tidak bisa menjawab pertanyaan di luar dari yang diprogramkan ke saya, jadi pertanyaan kamu akan diteruskan ke Admin.');
       logToAdmin(m.key.remoteJid, userText);
       await kirimKeAdminLangsung(sock, notifikasi);
     } else {
@@ -129,6 +138,7 @@ Gunakan data berikut sebagai referensi produk:\n\n${dataProduk}`
     await kirimPesan(sock, m, 'Gagal mengirim pesan ke Groq. Silakan coba lagi.');
   }
 }
+
 
 // Fungsi untuk menghandle pesan masuk
 async function handlePesan(sock, m) {
