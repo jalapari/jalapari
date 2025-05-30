@@ -34,6 +34,8 @@ LGS75 = Sany SY75, Komatsu PC78
 
 LGS100 = Zaxis ZX110, Komatsu PC130
 
+Tidak ada pilihan warna untuk Breaker
+
 DATA BAN TRUK
 BAN TRUK ukuran 750 atau 7.50 atau 
 Chilong CA808 R16-16PR , Tracmax R16-14PR , Joepanther JPA08 R16-16PR
