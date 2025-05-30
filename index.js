@@ -1,88 +1,60 @@
-// Import library yang dibutuhkan
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  DisconnectReason,
-  generateMessageID,
-  generateWAMessageFromContent,
-} = require('@whiskeysockets/baileys');
-
-require('./keepalive'); // agar tetap aktif
-
+const { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { Groq } = require('groq-sdk');
 const fs = require('fs');
-const path = require('path');
-const qrcode = require('qrcode-terminal');
-const axios = require('axios');
-const dotenv = require('dotenv');
+const P = require('pino');
+require('dotenv').config();
 
-// Konfigurasi .env
-dotenv.config();
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const sesiChat = new Map(); // Menyimpan histori percakapan per user
 
-// Load data produk
-const dataProduk = fs.readFileSync(path.join(__dirname, 'data.txt'), 'utf-8');
+const dataProduk = fs.readFileSync('./data.txt', 'utf8');
 
-// Konfigurasi Groq API
-const groq = axios.create({
-  baseURL: 'https://api.groq.com/openai/v1/',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-  },
-});
+async function startSock() {
+  const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+  const { version } = await fetchLatestBaileysVersion();
 
-// Fungsi bantu untuk ambil isi pesan teks dari berbagai format
-function getPesanTeks(msg) {
-  return msg.message?.conversation ||
-         msg.message?.extendedTextMessage?.text ||
-         null;
-}
+  const sock = makeWASocket({
+    version,
+    printQRInTerminal: true,
+    auth: state,
+    logger: P({ level: 'silent' })
+  });
 
-// Fungsi untuk mengirim pesan ke pengguna
-async function kirimPesan(sock, m, pesan) {
-  const message = generateWAMessageFromContent(m.key.remoteJid, {
-    conversation: pesan,
-  }, {});
+  sock.ev.on('creds.update', saveCreds);
 
-  await sock.relayMessage(
-    m.key.remoteJid,
-    message.message,
-    { messageId: generateMessageID() }
-  );
-}
+  sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    if (type !== 'notify') return;
+    const m = messages[0];
+    if (!m.message || m.key.fromMe) return;
+    await kirimPesanKeChatGroq(sock, m);
+  });
 
-// Fungsi mencatat ke log jika perlu diteruskan ke admin
-function logToAdmin(jid, pesan) {
-  const log = `[${new Date().toISOString()}] ${jid}: ${pesan}\n`;
-  fs.appendFileSync(path.join(__dirname, 'log_admin.txt'), log);
-}
-
-// Fungsi untuk kirim pesan ke admin (WA: +6285821255044)
-async function kirimKeAdminLangsung(sock, pesan) {
-  const adminJid = '62895385191311@s.whatsapp.net';
-  const message = generateWAMessageFromContent(adminJid, {
-    conversation: pesan,
-  }, {});
-  await sock.relayMessage(adminJid, message.message, {
-    messageId: generateMessageID(),
+  sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
+    if (connection === 'close' && lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut) {
+      startSock();
+    }
   });
 }
 
-// Fungsi untuk mengirim pesan ke Groq (LLM)
+function getPesanTeks(m) {
+  const msg = m.message;
+  if (msg.conversation) return msg.conversation;
+  if (msg.extendedTextMessage) return msg.extendedTextMessage.text;
+  if (msg.imageMessage?.caption) return msg.imageMessage.caption;
+  return '';
+}
+
+async function kirimPesan(sock, m, teks) {
+  await sock.sendMessage(m.key.remoteJid, { text: teks }, { quoted: m });
+}
+
 async function kirimPesanKeChatGroq(sock, m) {
   try {
-    const userText = getPesanTeks(m)?.trim() || '';
-    const lowerText = userText.toLowerCase();
+    const userText = getPesanTeks(m).trim();
+    const senderJid = m.key.remoteJid;
 
-    // Respon cepat untuk sapaan ringan
-    const greetings = ['halo', 'hi', 'test', 'assalamualaikum', 'pagi', 'malam'];
-    if (greetings.some(greet => lowerText.includes(greet))) {
-      await kirimPesan(sock, m, 'Halo! Ada yang bisa saya bantu seputar produk kami? 😊');
-      return;
-    }
-
-    const response = await groq.post('chat/completions', {
-      model: 'llama3-70b-8192',
-      messages: [
+    if (!sesiChat.has(senderJid)) {
+      sesiChat.set(senderJid, [
         {
           role: 'system',
           content: `Kamu adalah AI Marketing profesional yang sopan, ramah, dan proaktif. Tugas kamu adalah membantu calon customer yang tertarik dengan Hydraulic Breaker dari toko kami. Jawabanmu selalu menggunakan bahasa Indonesia, singkat, jelas, dan berbasis data produk di bawah.
@@ -104,102 +76,29 @@ Panduan utama kamu:
 
 Gunakan data produk berikut sebagai referensi:
 
-${dataProduk}
-`,
-        },
-        {
-          role: 'user',
-          content: userText,
-        },
-      ],
+${dataProduk}`
+        }
+      ]);
+    }
+
+    const sesi = sesiChat.get(senderJid);
+    sesi.push({ role: 'user', content: userText });
+
+    const response = await groq.chat.completions.create({
+      model: 'llama3-70b-8192',
+      messages: sesi
     });
 
-    const jawaban = response.data.choices[0].message.content.trim();
-    const lowerJawaban = jawaban.toLowerCase();
+    const jawaban = response.choices[0].message.content.trim();
+    sesi.push({ role: 'assistant', content: jawaban });
 
-    const isAlihkanKeAdmin =
-      /saya.*tidak.*(bisa|dapat).*jawab/.test(lowerJawaban) ||
-      lowerJawaban.includes('saya akan meneruskan') ||
-      lowerJawaban.includes('tidak menemukan informasi') ||
-      lowerJawaban.includes('saya tidak tahu');
+    if (sesi.length > 30) sesi.splice(1, sesi.length - 20); // Jaga performa
 
-    if (isAlihkanKeAdmin) {
-      const nomorUser = m.key.remoteJid.replace('@s.whatsapp.net', '');
-      const notifikasi = `📩 Pertanyaan dari https://wa.me/${nomorUser}:\n"${userText}"\nTidak bisa dijawab oleh AI.`;
-
-      await kirimPesan(sock, m, 'Saya adalah asisten AI. Untuk saat ini saya tidak bisa menjawab pertanyaan di luar dari yang diprogramkan ke saya, jadi pertanyaan kamu akan diteruskan ke Admin.');
-      logToAdmin(m.key.remoteJid, userText);
-      await kirimKeAdminLangsung(sock, notifikasi);
-    } else {
-      await kirimPesan(sock, m, jawaban);
-    }
+    await kirimPesan(sock, m, jawaban);
   } catch (error) {
-    console.error('Gagal mengirim pesan ke Groq:', error?.response?.data || error);
-    await kirimPesan(sock, m, 'Gagal mengirim pesan ke Groq. Silakan coba lagi.');
+    console.error('Gagal kirim ke Groq:', error?.response?.data || error);
+    await kirimPesan(sock, m, 'Maaf, terjadi kesalahan saat menjawab.');
   }
 }
 
-
-// Fungsi untuk menghandle pesan masuk
-async function handlePesan(sock, m) {
-  const teks = getPesanTeks(m);
-  if (!teks) return;
-  console.log('Pesan masuk dari', m.key.remoteJid, ':', teks);
-  await kirimPesanKeChatGroq(sock, m);
-}
-
-// Inisialisasi koneksi WhatsApp
-async function startBot() {
-  const { state, saveCreds } = await useMultiFileAuthState('auth_info');
-  const sock = makeWASocket({
-    auth: state,
-    printQRInTerminal: true,
-  });
-
-  sock.ev.on('creds.update', saveCreds);
-
-  sock.ev.on('connection.update', (update) => {
-    const { connection, qr, lastDisconnect } = update;
-
-    if (qr) {
-      qrcode.generate(qr, { small: true });
-    }
-
-    if (connection === 'close') {
-      const shouldReconnect =
-        lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log('Koneksi terputus, reconnect:', shouldReconnect);
-      if (shouldReconnect) {
-        startBot();
-      }
-    } else if (connection === 'open') {
-      console.log('Koneksi ke WhatsApp berhasil');
-    }
-  });
-
-  sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    console.log('\n=== Event messages.upsert ===');
-    console.log('Tipe update:', type);
-    console.log('Isi messages:', JSON.stringify(messages, null, 2));
-
-    const msg = messages?.[0];
-    if (!msg) {
-      console.log('Pesan kosong. Tidak diproses.');
-      return;
-    }
-
-    const isFromMe = msg.key.fromMe;
-    const teks = getPesanTeks(msg);
-    console.log('Dari saya sendiri?:', isFromMe);
-    console.log('Isi teks pesan:', teks);
-
-    if (!isFromMe && teks) {
-      console.log('>> Menjalankan handlePesan...');
-      await handlePesan(sock, msg);
-    } else {
-      console.log('>> Pesan tidak diproses karena tidak memenuhi syarat.');
-    }
-  });
-}
-
-startBot();
+startSock();
